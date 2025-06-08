@@ -24,12 +24,12 @@
 
 1. スクリプトに実行権限を付与
 ```bash
-chmod +x check_java.sh
+chmod +x check_java.bash
 ```
 
 2. スクリプトを実行
 ```bash
-sudo ./check_java.sh
+sudo ./check_java.bash
 ```
 
 ## 出力例
