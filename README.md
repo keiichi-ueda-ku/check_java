@@ -35,8 +35,8 @@ sudo ./check_java.sh
 ## 出力例
 
 ```
-ホスト名: example-server
-IPアドレス: 192.168.1.100
+ホスト名: DESKTOP-IHCL2ML
+IPアドレス: 172.18.202.35
 Ubuntu/Debian
 ----------------------------------------
 1. パス（PATH）上のJava実行ファイルの確認:
@@ -58,8 +58,8 @@ Oracle Java SEは検出されませんでした
 
 === 検出結果サマリー ===
 検証対象ホスト:
-  ホスト名: example-server
-  IPアドレス: 192.168.1.100
+  ホスト名: DESKTOP-IHCL2ML
+  IPアドレス: 172.18.202.35
   プラットフォーム: Linux
 ----------------------------------------
 検査結果:
@@ -116,3 +116,30 @@ Oracle Java SEは検出されませんでした
 ## ライセンス
 
 MIT License
+
+## 付録：Oracle Java SEのアンインストール手順（Ubuntu）
+
+### 手動インストールの場合
+
+1. JAVA_HOMEの設定を削除
+```bash
+# .bashrcから以下の行を削除
+export JAVA_HOME=/usr/lib/jvm/jdk-*
+export PATH=$JAVA_HOME/bin:$PATH
+```
+
+2. インストールディレクトリの削除
+```bash
+sudo rm -rf /usr/lib/jvm/jdk-*
+```
+
+3. 設定の反映
+```bash
+source ~/.bashrc
+```
+
+### 注意事項
+
+- アンインストール前に、Oracle Java SEに依存するアプリケーションがないことを確認してください
+- システムのJava環境に影響を与える可能性があります
+- 必要に応じて、代替のJavaディストリビューション（OpenJDKなど）をインストールすることを検討してください
