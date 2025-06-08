@@ -1,33 +1,22 @@
 # Oracle Java SE 検出スクリプト
 
-このスクリプトは、システムにインストールされているOracle Java SEを検出するためのツールです。
+このスクリプトは、システム上にOracle Java SEがインストールされているかどうかを検出するためのツールです。
 
 ## 機能
 
-- 4種類の検査方法によるOracle Java SEの検出
-  1. パス（PATH）上のJava実行ファイルの確認
-  2. JAVA_HOME環境変数が指すJavaの確認
-  3. パッケージマネージャーによるOracle Java SEパッケージの確認
-  4. ファイルシステム全体でのOracle Java SE実行ファイルの検索（オプション）
-
-- サポートしているシステム
-  - Linux
-    - Ubuntu/Debian (apt)
-    - RHEL/CentOS (rpm)
-  - UNIX
-    - Oracle Solaris (pkginfo)
-    - IBM AIX (lslpp)
-    - HP-UX (swlist)
-  - macOS (pkg_info)
+1. パス（PATH）上のJava実行ファイルの確認
+2. JAVA_HOME環境変数が指すJavaの確認
+3. パッケージマネージャーによるOracle Java SEパッケージの確認
+4. ファイルシステム全体でのOracle Java SE実行ファイルの検索（オプション）
 
 ## 使用方法
 
-1. スクリプトに実行権限を付与
+1. スクリプトに実行権限を付与:
 ```bash
 chmod +x check_java.bash
 ```
 
-2. スクリプトを実行
+2. スクリプトを実行:
 ```bash
 sudo ./check_java.bash
 ```
@@ -35,9 +24,10 @@ sudo ./check_java.bash
 ## 出力例
 
 ```
+検証対象ホスト情報:
 ホスト名: DESKTOP-IHCL2ML
 IPアドレス: 172.18.202.35
-Ubuntu/Debian
+プラットフォーム: Linux
 ----------------------------------------
 1. パス（PATH）上のJava実行ファイルの確認:
 Oracle Java SEは検出されませんでした
@@ -48,29 +38,42 @@ Oracle Java SEは検出されませんでした
 3. パッケージマネージャー（apt）によるOracle Java SEパッケージの確認:
 Oracle Java SEは検出されませんでした
 ----------------------------------------
-4. ファイルシステム全体でのOracle Java SE実行ファイルの検索:
-----------------------------------------
-この検索は時間がかかる場合があります。
-
+これまでの確認でOracle Java SEは検出されませんでした。
+ファイルシステム全体でのOracle Java SE実行ファイルの検索を実行しますか？
+※ この検索には時間がかかる場合があります
 検索を実行しますか？ (y/N): y
 Oracle Java SEは検出されませんでした
 ----------------------------------------
 
-=== 検出結果サマリー ===
-検証対象ホスト:
-  ホスト名: DESKTOP-IHCL2ML
-  IPアドレス: 172.18.202.35
-  プラットフォーム: Linux
+=== Detection Results Summary (検出結果サマリー) ===
+Target Host (検証対象ホスト):
+  Hostname (ホスト名): DESKTOP-IHCL2ML
+  IP Address (IPアドレス): 172.18.202.35
+  Platform (プラットフォーム): Linux
 ----------------------------------------
-検査結果:
-  1. パス（PATH）上のJava実行ファイル: 未検出
-  2. JAVA_HOME環境変数: 未検出
-  3. パッケージマネージャー: 未検出
-  4. ファイルシステム全体: 未検出
+Check Results (検査結果):
+  1. Java in PATH: Not Detected (未検出)
+  2. Java in JAVA_HOME: Not Detected (未検出)
+  3. Package Manager: Not Detected (未検出)
+  4. File System Search: Not Detected (未検出)
 ----------------------------------------
-Oracle Java SEは検出されませんでした
+No Oracle Java SE detected (Oracle Java SEは検出されませんでした)
 ----------------------------------------
 ```
+
+## 注意事項
+
+- スクリプトの実行には管理者権限（sudo）が必要です
+- ファイルシステム全体の検索は時間がかかる場合があります
+- 検索を実行するかどうかは、ユーザーが選択できます
+
+## 対応プラットフォーム
+
+- Linux (apt, rpm)
+- Oracle Solaris (pkginfo)
+- IBM AIX (lslpp)
+- HP-UX (swlist)
+- macOS (pkg_info)
 
 ## 検出方法の詳細
 
@@ -106,12 +109,6 @@ Oracle Java SEは検出されませんでした
 3. 最終的な検出結果
    - Oracle Java SEの検出有無
    - 検出された場合は検出数も表示
-
-## 注意事項
-
-- スクリプトの実行には管理者権限（sudo）が必要です
-- ファイルシステム全体の検索は時間がかかる場合があります
-- 検出結果は、システムの状態によって異なる場合があります
 
 ## ライセンス
 

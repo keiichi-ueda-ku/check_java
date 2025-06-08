@@ -172,12 +172,11 @@ check_package_manager() {
 
     echo "3. パッケージマネージャー（$package_manager）によるOracle Java SEパッケージの確認:"
     local found_packages=""
+    
+    # パッケージの検索
     for pattern in "${ORACLE_JAVA_PATTERNS[@]}"; do
         local packages
-        if ! packages=$($command 2>/dev/null | grep -iE "$pattern"); then
-            echo "[$package_manager] 検索失敗" >&2
-            continue
-        fi
+        packages=$($command 2>/dev/null | grep -iE "$pattern") || continue
         if [ -n "$packages" ]; then
             found_packages="$found_packages
 $packages"
@@ -320,28 +319,28 @@ show_platform_specific_info() {
 
 # 検出結果のサマリー表示
 show_summary() {
-    echo -e "\n=== 検出結果サマリー ==="
-    echo "検証対象ホスト:"
-    echo "  ホスト名: $(hostname)"
+    echo -e "\n=== Detection Results Summary (検出結果サマリー) ==="
+    echo "Target Host (検証対象ホスト):"
+    echo "  Hostname (ホスト名): $(hostname)"
     local ip_address=$(hostname -I 2>/dev/null | cut -d' ' -f1)
     if [ -n "$ip_address" ]; then
-        echo "  IPアドレス: $ip_address"
+        echo "  IP Address (IPアドレス): $ip_address"
     fi
-    echo "  プラットフォーム: $(uname -s)"
+    echo "  Platform (プラットフォーム): $(uname -s)"
     echo "$MSG_SEPARATOR"
     
-    echo "検査結果:"
-    echo "  1. パス（PATH）上のJava実行ファイル: $(if [ $found_count -gt 0 ]; then echo -e "${GREEN}検出${NC}"; else echo -e "${RED}未検出${NC}"; fi)"
-    echo "  2. JAVA_HOME環境変数: $(if [ $found_count -gt 0 ]; then echo -e "${GREEN}検出${NC}"; else echo -e "${RED}未検出${NC}"; fi)"
-    echo "  3. パッケージマネージャー: $(if [ $found_count -gt 0 ]; then echo -e "${GREEN}検出${NC}"; else echo -e "${RED}未検出${NC}"; fi)"
-    echo "  4. ファイルシステム全体: $(if [ $found_count -gt 0 ]; then echo -e "${GREEN}検出${NC}"; else echo -e "${RED}未検出${NC}"; fi)"
+    echo "Check Results (検査結果):"
+    echo "  1. Java in PATH: $(if [ $found_count -gt 0 ]; then echo -e "${GREEN}Detected${NC} (検出)"; else echo -e "${RED}Not Detected${NC} (未検出)"; fi)"
+    echo "  2. Java in JAVA_HOME: $(if [ $found_count -gt 0 ]; then echo -e "${GREEN}Detected${NC} (検出)"; else echo -e "${RED}Not Detected${NC} (未検出)"; fi)"
+    echo "  3. Package Manager: $(if [ $found_count -gt 0 ]; then echo -e "${GREEN}Detected${NC} (検出)"; else echo -e "${RED}Not Detected${NC} (未検出)"; fi)"
+    echo "  4. File System Search: $(if [ $found_count -gt 0 ]; then echo -e "${GREEN}Detected${NC} (検出)"; else echo -e "${RED}Not Detected${NC} (未検出)"; fi)"
     echo "$MSG_SEPARATOR"
     
     if [ $found_count -gt 0 ]; then
-        echo -e "${GREEN}Oracle Java SEが検出されました${NC}"
-        echo "検出数: $found_count"
+        echo -e "${GREEN}Oracle Java SE detected${NC} (Oracle Java SEが検出されました)"
+        echo "Detection Count (検出数): $found_count"
     else
-        echo -e "${RED}Oracle Java SEは検出されませんでした${NC}"
+        echo -e "${RED}No Oracle Java SE detected${NC} (Oracle Java SEは検出されませんでした)"
     fi
     echo "$MSG_SEPARATOR"
 }
@@ -358,47 +357,56 @@ main() {
         exit 1
     fi
     
+    echo "検証対象ホスト情報:"
     echo "ホスト名: $hostname"
     if [ -n "$ip_address" ]; then
         echo "IPアドレス: $ip_address"
     fi
-    
-    # パッケージマネージャーの検出
-    local detected_pkg_mgr=""
-    for pkg_mgr in "${PACKAGE_MANAGERS[@]}"; do
-        IFS=':' read -r name cmd <<< "$pkg_mgr"
-        if command -v "$name" &> /dev/null; then
-            detected_pkg_mgr="$name"
-            break
-        fi
-    done
-    
-    # ディストリビューション名の表示
-    echo "$(get_distribution "$platform" "$detected_pkg_mgr")"
+    echo "プラットフォーム: $platform"
     echo "$MSG_SEPARATOR"
-    
-    # 3種類の検査を実行
+
+    # パッケージマネージャーの検出
+    local package_manager
+    local command
+    if command -v apt &>/dev/null; then
+        package_manager="apt"
+        command="apt list --installed"
+    elif command -v rpm &>/dev/null; then
+        package_manager="rpm"
+        command="rpm -qa"
+    elif command -v pkginfo &>/dev/null; then
+        package_manager="pkginfo"
+        command="pkginfo"
+    elif command -v lslpp &>/dev/null; then
+        package_manager="lslpp"
+        command="lslpp -L"
+    elif command -v swlist &>/dev/null; then
+        package_manager="swlist"
+        command="swlist"
+    elif command -v pkg_info &>/dev/null; then
+        package_manager="pkg_info"
+        command="pkg_info"
+    fi
+
+    # 各チェックの実行
     check_system_java
     check_java_home
-    show_platform_specific_info "$platform"
-    
-    # ファイルシステム検索前の確認
-    if [ $found_count -eq 0 ]; then
-        echo "4. ファイルシステム全体でのOracle Java SE実行ファイルの検索:"
-        echo "$MSG_SEPARATOR"
-        echo "この検索は時間がかかる場合があります。"
-        echo
-        read -p "検索を実行しますか？ (y/N): " answer
-        case "$answer" in
-            [yY]|[yY][eE][sS])
-                search_custom_java
-                ;;
-            *)
-                echo "ファイルシステムの検索をスキップしました。"
-                ;;
-        esac
+    if [ -n "$package_manager" ]; then
+        check_package_manager "$package_manager" "$command"
     fi
-    
+
+    # ファイルシステム検索の確認
+    if [ $found_count -eq 0 ]; then
+        echo "これまでの確認でOracle Java SEは検出されませんでした。"
+        echo "ファイルシステム全体でのOracle Java SE実行ファイルの検索を実行しますか？"
+        echo "※ この検索には時間がかかる場合があります"
+        read -p "検索を実行しますか？ (y/N): " answer
+        if [[ $answer =~ ^[Yy]$ ]]; then
+            search_custom_java
+        fi
+    fi
+
+    # 結果の表示
     show_summary
 }
 
