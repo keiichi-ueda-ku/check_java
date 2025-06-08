@@ -50,7 +50,7 @@ handle_error() {
 get_system_info() {
     local platform=$(uname -s)
     local hostname=$(hostname 2>/dev/null)
-    local ip_address=$(hostname -I 2>/dev/null | awk '{print $1}')
+    local ip_address=$(hostname -I 2>/dev/null | cut -d' ' -f1)
     
     if [ -z "$hostname" ]; then
         handle_error "ホスト名の取得に失敗しました"
@@ -67,7 +67,7 @@ get_system_info() {
 # 実行確認
 confirm_execution() {
     local hostname=$(hostname)
-    local ip_address=$(hostname -I 2>/dev/null | awk '{print $1}')
+    local ip_address=$(hostname -I 2>/dev/null | cut -d' ' -f1)
     
     echo "=== 実行確認 ==="
     echo "ホスト名: $hostname"
@@ -93,6 +93,8 @@ confirm_execution() {
 # Oracle Java SEの検出
 is_oracle_java() {
     local java_info=$1
+    local java_path=$2
+    
     # HotSpotはOracle Java SEの特徴の一つだが、それだけでは不十分
     if ! echo "$java_info" | grep -i "HotSpot" > /dev/null; then
         return 1
@@ -101,6 +103,15 @@ is_oracle_java() {
     # Oracle Java SEの特徴的な識別子を確認
     for pattern in "${ORACLE_JAVA_PATTERNS[@]}"; do
         if echo "$java_info" | grep -iE "$pattern" > /dev/null; then
+            if [ -n "$java_path" ]; then
+                echo -e "${GREEN}Oracle Java SE を検出:${NC}"
+                echo "  場所: $java_path"
+                echo "  バージョン情報:"
+                echo "$java_info" | while read -r line; do
+                    echo "    $line"
+                done
+                echo "$MSG_SEPARATOR"
+            fi
             return 0
         fi
     done
@@ -120,13 +131,7 @@ check_system_java() {
     java_info=$(java -version 2>&1) || handle_error "Javaのバージョン情報の取得に失敗しました"
     local java_version=$(echo "$java_info" | awk -F '"' '/version/ {print $2}')
     
-    if is_oracle_java "$java_info"; then
-        echo -e "${GREEN}Oracle Java SE が検出されました${NC}"
-        echo "バージョン: $java_version"
-        echo "ベンダー情報:"
-        echo "$java_info" | while read -r line; do
-            echo "  $line"
-        done
+    if is_oracle_java "$java_info" "$(which java)"; then
         found_count+=1
     else
         echo -e "$MSG_NOT_ORACLE"
@@ -144,11 +149,15 @@ check_java_home() {
     echo "2. JAVA_HOME環境変数が指すJavaの確認:"
     if [ -n "$JAVA_HOME" ]; then
         echo "JAVA_HOME: $JAVA_HOME"
-        if [[ "$JAVA_HOME" == *"oracle"* ]] || [[ "$JAVA_HOME" == *"Oracle"* ]]; then
-            echo -e "${GREEN}JAVA_HOMEはOracle Java SEを指しています${NC}"
-            found_count+=1
+        if [ -x "$JAVA_HOME/bin/java" ]; then
+            local java_info=$("$JAVA_HOME/bin/java" -version 2>&1)
+            if is_oracle_java "$java_info" "$JAVA_HOME/bin/java"; then
+                found_count+=1
+            else
+                echo -e "$MSG_NOT_ORACLE"
+            fi
         else
-            echo -e "$MSG_NOT_ORACLE"
+            echo -e "$MSG_NO_ORACLE_JAVA"
         fi
     else
         echo -e "$MSG_NO_ORACLE_JAVA"
@@ -165,7 +174,10 @@ check_package_manager() {
     local found_packages=""
     for pattern in "${ORACLE_JAVA_PATTERNS[@]}"; do
         local packages
-        packages=$($command 2>/dev/null | grep -iE "$pattern") || continue
+        if ! packages=$($command 2>/dev/null | grep -iE "$pattern"); then
+            echo "[$package_manager] 検索失敗" >&2
+            continue
+        fi
         if [ -n "$packages" ]; then
             found_packages="$found_packages
 $packages"
@@ -200,40 +212,43 @@ is_system_bin_dir() {
 # カスタムJavaの検索
 search_custom_java() {
     local found_oracle=0
-    find "/" -name "java" -type f -executable 2>/dev/null | while read -r java_path; do
-        if [ -x "$java_path" ] && [ -f "$java_path" ]; then
-            local dir=$(dirname "$java_path")
-            if ! is_system_bin_dir "$dir"; then
-                if check_oracle_java "$java_path"; then
-                    found_oracle=1
-                    found_count+=1
-                    echo -e "${GREEN}Oracle Java SE を検出:${NC}"
-                    echo "  場所: $java_path"
-                    echo "  バージョン情報:"
-                    "$java_path" -version 2>&1 | while read -r line; do
-                        echo "    $line"
-                    done
-                    echo "$MSG_SEPARATOR"
+    
+    # updatedbが利用可能な場合はlocateを使用
+    if command -v updatedb &> /dev/null && command -v locate &> /dev/null; then
+        echo "locateを使用して検索を高速化します..."
+        sudo updatedb
+        locate java | while read -r java_path; do
+            if [ -x "$java_path" ] && [ -f "$java_path" ]; then
+                local dir=$(dirname "$java_path")
+                if ! is_system_bin_dir "$dir"; then
+                    local java_info=$("$java_path" -version 2>&1)
+                    if is_oracle_java "$java_info" "$java_path"; then
+                        found_oracle=1
+                        found_count+=1
+                    fi
                 fi
             fi
-        fi
-    done
+        done
+    else
+        # locateが利用できない場合はfindを使用
+        find "/" -name "java" -type f -executable 2>/dev/null | while read -r java_path; do
+            if [ -x "$java_path" ] && [ -f "$java_path" ]; then
+                local dir=$(dirname "$java_path")
+                if ! is_system_bin_dir "$dir"; then
+                    local java_info=$("$java_path" -version 2>&1)
+                    if is_oracle_java "$java_info" "$java_path"; then
+                        found_oracle=1
+                        found_count+=1
+                    fi
+                fi
+            fi
+        done
+    fi
 
     if [ $found_oracle -eq 0 ]; then
         echo -e "$MSG_NO_ORACLE_JAVA"
         echo "$MSG_SEPARATOR"
     fi
-}
-
-# Oracle Javaの確認と情報表示
-check_oracle_java() {
-    local java_path=$1
-    local java_info=$("$java_path" -version 2>&1)
-    
-    if is_oracle_java "$java_info"; then
-        return 0
-    fi
-    return 1
 }
 
 # ディストリビューションの判定
@@ -308,7 +323,7 @@ show_summary() {
     echo -e "\n=== 検出結果サマリー ==="
     echo "検証対象ホスト:"
     echo "  ホスト名: $(hostname)"
-    local ip_address=$(hostname -I 2>/dev/null | awk '{print $1}')
+    local ip_address=$(hostname -I 2>/dev/null | cut -d' ' -f1)
     if [ -n "$ip_address" ]; then
         echo "  IPアドレス: $ip_address"
     fi
@@ -336,7 +351,7 @@ main() {
     # システム情報の表示
     local platform=$(uname -s)
     local hostname=$(hostname 2>/dev/null)
-    local ip_address=$(hostname -I 2>/dev/null | awk '{print $1}')
+    local ip_address=$(hostname -I 2>/dev/null | cut -d' ' -f1)
     
     if [ -z "$hostname" ]; then
         handle_error "ホスト名の取得に失敗しました"
